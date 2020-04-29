@@ -3,6 +3,7 @@ import { AngularFirestore } from '@angular/fire/firestore';
 import { map, first } from 'rxjs/operators';
 import { Course } from '../model/course';
 import { Observable } from 'rxjs';
+import { convertSnaps } from './db-util';
 
 @Injectable({
   providedIn: 'root'
@@ -12,19 +13,10 @@ export class CoursesService {
   constructor(private db: AngularFirestore) { }
 
   loadAllCourses(): Observable<Course[]> {
-    return this.db.collection('courses', ref => ref.where('seqNo', '==', 5)
-    .where('lessonsCount', '>=', 5))
+    return this.db.collection('courses', ref => ref.orderBy('seqNo'))
     .snapshotChanges()
       .pipe(
-        map(snaps => {
-          return snaps.map(snap => {
-              return <Course> {
-                  id: snap.payload.doc.id,
-                  ...snap.payload.doc.data() as {}
-              }
-          });
-      }),
-        
+        map(snaps => convertSnaps<Course>(snaps)),
         first()); 
         // First() requires you to refresh to see any changes as Observable has been completed and this is more 
         // like http behaviour that a user is maybe used too
@@ -33,5 +25,19 @@ export class CoursesService {
         // ref.orderBy sorts the docs from the collection using the seqNo
   }
 
-
+  findCourseByUrl(courseUrl: string): Observable<Course> {
+    return this.db.collection('courses',
+      ref => ref.where('url', '==', courseUrl))
+      .snapshotChanges()
+      .pipe(
+        map(snaps => {
+          const courses = convertSnaps<Course>(snaps);
+          return courses.length == 1 ? courses[0] : undefined;
+        }),
+        first()
+    )
+  }
 }
+
+// using ref => ref.where('seqNo', '==', 5).where('lessonsCount', '>=', 5)) shows an error in the console
+// firebase asks you to create an index for compound querys like the above
